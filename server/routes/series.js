@@ -7,16 +7,20 @@ import { authMiddleware } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
+// Hàm trả về đường dẫn đầy đủ cho file
+const getFullUrl = (req, filePath) => {
+  if (!filePath) return "";
+  if (filePath.startsWith('http')) return filePath;
+  return `${req.protocol}://${req.get('host')}${filePath}`;
+};
+
 // Tạo phim bộ mới
 router.post('/', async (req, res) => {
-  console.log('req.body:', req.body);
-  console.log('req.files:', req.files);
   try {
     let {
       name, genres, year, description, country, directors, actors, hasSubtitle
     } = req.body;
 
-    // Đảm bảo các trường là mảng và loại bỏ giá trị rỗng
     if (!Array.isArray(genres)) genres = genres ? [genres] : [];
     genres = genres.filter(g => g);
     if (!Array.isArray(directors)) directors = directors ? [directors] : [];
@@ -32,8 +36,7 @@ router.post('/', async (req, res) => {
     }
 
     // Lấy đường dẫn các file gallery
-    let galleryUrls = [];
-    galleryUrls = req.files
+    let galleryUrls = req.files
       .filter(f => f.fieldname === "gallery")
       .map(file => path.join('/uploads', file.filename));
 
@@ -63,7 +66,7 @@ router.post('/', async (req, res) => {
       gallery: galleryUrls,
       episodes,
       hasSubtitle: hasSubtitle === "true" || hasSubtitle === true,
-      comments: [] // Khởi tạo mảng bình luận rỗng
+      comments: []
     });
 
     await series.save();
@@ -76,7 +79,16 @@ router.post('/', async (req, res) => {
       );
     }
 
-    res.status(201).json({ message: 'Series created', series });
+    // Trả về đường dẫn đầy đủ cho thumbnail, gallery, video trong episodes
+    const seriesObj = series.toObject();
+    seriesObj.thumbnail = getFullUrl(req, series.thumbnail);
+    seriesObj.gallery = series.gallery.map(img => getFullUrl(req, img));
+    seriesObj.episodes = series.episodes.map(ep => ({
+      ...ep,
+      video: getFullUrl(req, ep.video)
+    }));
+
+    res.status(201).json({ message: 'Series created', series: seriesObj });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -100,7 +112,18 @@ router.get('/', async (req, res) => {
       .populate('genres')
       .sort({ [sort]: -1 })
       .limit(Number(limit));
-    res.json(seriesList);
+    // Trả về đường dẫn đầy đủ cho thumbnail, gallery, video trong episodes
+    const seriesWithFullUrl = seriesList.map(s => {
+      const obj = s.toObject();
+      obj.thumbnail = getFullUrl(req, s.thumbnail);
+      obj.gallery = s.gallery.map(img => getFullUrl(req, img));
+      obj.episodes = s.episodes.map(ep => ({
+        ...ep,
+        video: getFullUrl(req, ep.video)
+      }));
+      return obj;
+    });
+    res.json(seriesWithFullUrl);
   } catch (err) {
     res.status(500).json({ error: "Lỗi server" });
   }
@@ -113,7 +136,15 @@ router.get('/:id', async (req, res) => {
       .populate('genres')
       .populate({ path: 'comments.user', select: 'displayName' });
     if (!series) return res.status(404).json({ error: "Không tìm thấy phim bộ" });
-    res.json(series);
+    // Trả về đường dẫn đầy đủ cho thumbnail, gallery, video trong episodes
+    const seriesObj = series.toObject();
+    seriesObj.thumbnail = getFullUrl(req, series.thumbnail);
+    seriesObj.gallery = series.gallery.map(img => getFullUrl(req, img));
+    seriesObj.episodes = series.episodes.map(ep => ({
+      ...ep,
+      video: getFullUrl(req, ep.video)
+    }));
+    res.json(seriesObj);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -123,7 +154,6 @@ router.get('/:id', async (req, res) => {
 router.post('/:id/comment', authMiddleware, async (req, res) => {
   try {
     const { content } = req.body;
-    // Lấy userId từ token đã xác thực
     const userId = req.user.userId;
     if (!userId || !content) {
       return res.status(400).json({ error: "Thiếu userId hoặc nội dung bình luận" });
@@ -137,12 +167,20 @@ router.post('/:id/comment', authMiddleware, async (req, res) => {
     });
     await series.save();
 
-    // Lấy lại series với populate user cho comment
     const updatedSeries = await Series.findById(req.params.id)
       .populate('genres')
       .populate({ path: 'comments.user', select: 'displayName' });
 
-    res.json({ message: "Đã thêm bình luận", series: updatedSeries });
+    // Trả về đường dẫn đầy đủ cho thumbnail, gallery, video trong episodes
+    const seriesObj = updatedSeries.toObject();
+    seriesObj.thumbnail = getFullUrl(req, updatedSeries.thumbnail);
+    seriesObj.gallery = updatedSeries.gallery.map(img => getFullUrl(req, img));
+    seriesObj.episodes = updatedSeries.episodes.map(ep => ({
+      ...ep,
+      video: getFullUrl(req, ep.video)
+    }));
+
+    res.json({ message: "Đã thêm bình luận", series: seriesObj });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -151,7 +189,6 @@ router.post('/:id/comment', authMiddleware, async (req, res) => {
 // Xóa bình luận (chỉ cho phép user đã đăng bình luận xóa)
 router.delete('/:id/comment/:commentId', authMiddleware, async (req, res) => {
   try {
-    // Lấy userId từ token đã xác thực
     const userId = req.user.userId;
     if (!userId) return res.status(400).json({ error: "Thiếu userId" });
 
@@ -161,21 +198,27 @@ router.delete('/:id/comment/:commentId', authMiddleware, async (req, res) => {
     const comment = series.comments.id(req.params.commentId);
     if (!comment) return res.status(404).json({ error: "Không tìm thấy bình luận" });
 
-    // Chỉ cho phép user đã đăng bình luận xóa
     if (comment.user.toString() !== userId) {
       return res.status(403).json({ error: "Bạn không có quyền xóa bình luận này" });
     }
 
-    // Sửa tại đây: dùng pull thay vì comment.remove()
     series.comments.pull({ _id: req.params.commentId });
     await series.save();
 
-    // Lấy lại series với populate user cho comment
     const updatedSeries = await Series.findById(req.params.id)
       .populate('genres')
       .populate({ path: 'comments.user', select: 'displayName' });
 
-    res.json({ message: "Đã xóa bình luận", series: updatedSeries });
+    // Trả về đường dẫn đầy đủ cho thumbnail, gallery, video trong episodes
+    const seriesObj = updatedSeries.toObject();
+    seriesObj.thumbnail = getFullUrl(req, updatedSeries.thumbnail);
+    seriesObj.gallery = updatedSeries.gallery.map(img => getFullUrl(req, img));
+    seriesObj.episodes = updatedSeries.episodes.map(ep => ({
+      ...ep,
+      video: getFullUrl(req, ep.video)
+    }));
+
+    res.json({ message: "Đã xóa bình luận", series: seriesObj });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -183,14 +226,11 @@ router.delete('/:id/comment/:commentId', authMiddleware, async (req, res) => {
 
 // Cập nhật phim bộ
 router.put('/:id', async (req, res) => {
-  console.log('req.body:', req.body);
-  console.log('req.files:', req.files);
   try {
     const {
       name, genres, year, description, country, directors, actors, hasSubtitle
     } = req.body;
 
-    // Đảm bảo các trường là mảng và loại bỏ giá trị rỗng
     let genresArr = genres;
     let directorsArr = directors;
     let actorsArr = actors;
@@ -228,8 +268,6 @@ router.put('/:id', async (req, res) => {
 
     // Xử lý danh sách tập phim cập nhật
     let episodes = [];
-
-    // Trường hợp FE gửi từng trường riêng lẻ (episodes[0][name], ...)
     let idx = 0;
     let foundAny = false;
     while (req.body[`episodes[${idx}][name]`] !== undefined) {
@@ -250,7 +288,6 @@ router.put('/:id', async (req, res) => {
       idx++;
     }
 
-    // Trường hợp FE gửi dạng mảng (episodes: [...])
     if (!foundAny && Array.isArray(req.body.episodes)) {
       req.body.episodes.forEach((ep, idx) => {
         let epName = ep.name;
@@ -269,7 +306,6 @@ router.put('/:id', async (req, res) => {
       });
     }
 
-    // Nếu không có tập nào (do FE gửi thiếu), giữ lại toàn bộ tập cũ
     if (episodes.length === 0 && oldSeries && oldSeries.episodes) {
       episodes = oldSeries.episodes;
     }
@@ -282,7 +318,6 @@ router.put('/:id', async (req, res) => {
     );
     if (!series) return res.status(404).json({ error: "Không tìm thấy phim bộ" });
 
-    // Thêm series._id vào movieId của các genre liên quan (nếu cập nhật genres)
     if (Array.isArray(genresArr) && genresArr.length > 0) {
       await Genre.updateMany(
         { _id: { $in: genresArr } },
@@ -290,7 +325,16 @@ router.put('/:id', async (req, res) => {
       );
     }
 
-    res.json({ message: "Đã cập nhật phim bộ", series });
+    // Trả về đường dẫn đầy đủ cho thumbnail, gallery, video trong episodes
+    const seriesObj = series.toObject();
+    seriesObj.thumbnail = getFullUrl(req, series.thumbnail);
+    seriesObj.gallery = series.gallery.map(img => getFullUrl(req, img));
+    seriesObj.episodes = series.episodes.map(ep => ({
+      ...ep,
+      video: getFullUrl(req, ep.video)
+    }));
+
+    res.json({ message: "Đã cập nhật phim bộ", series: seriesObj });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
