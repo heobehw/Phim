@@ -4,16 +4,26 @@ import path from 'path';
 
 const router = express.Router();
 
+// Hàm trả về đường dẫn đầy đủ cho thumbnail
+const getFullUrl = (req, filePath) => {
+  if (!filePath) return "";
+  if (filePath.startsWith('http')) return filePath;
+  return `${req.protocol}://${req.get('host')}${filePath}`;
+};
+
 router.post('/', async (req, res) => {
   try {
-    const { name, movieId } = req.body; // nhận movieId từ body
+    const { name, movieId } = req.body;
     let thumbnailUrl = "";
     if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
       thumbnailUrl = path.join('/uploads', req.files.thumbnail[0].filename);
     }
     const genre = new Genre({ name, thumbnail: thumbnailUrl, movieId });
     await genre.save();
-    res.status(201).json({ message: 'Genre created', genre });
+    // Trả về đường dẫn đầy đủ cho thumbnail
+    const genreObj = genre.toObject();
+    genreObj.thumbnail = getFullUrl(req, genre.thumbnail);
+    res.status(201).json({ message: 'Genre created', genre: genreObj });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -21,7 +31,7 @@ router.post('/', async (req, res) => {
 
 router.put('/:id', async (req, res) => {
   try {
-    const { name, movieId } = req.body; // nhận movieId từ body
+    const { name, movieId } = req.body;
     let thumbnailUrl = undefined;
     if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
       thumbnailUrl = path.join('/uploads', req.files.thumbnail[0].filename);
@@ -35,7 +45,9 @@ router.put('/:id', async (req, res) => {
       { new: true }
     );
     if (!genre) return res.status(404).json({ error: "Không tìm thấy thể loại" });
-    res.json({ message: "Đã cập nhật thể loại", genre });
+    const genreObj = genre.toObject();
+    genreObj.thumbnail = getFullUrl(req, genre.thumbnail);
+    res.json({ message: "Đã cập nhật thể loại", genre: genreObj });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -65,7 +77,13 @@ router.get('/:id/movies', async (req, res) => {
 router.get('/', async (req, res) => {
   try {
     const genres = await Genre.find();
-    res.json(genres);
+    // Trả về đường dẫn đầy đủ cho thumbnail
+    const genresWithFullUrl = genres.map(g => {
+      const obj = g.toObject();
+      obj.thumbnail = getFullUrl(req, g.thumbnail);
+      return obj;
+    });
+    res.json(genresWithFullUrl);
   } catch (err) {
     res.status(500).json({ error: "Lỗi server" });
   }
@@ -76,7 +94,9 @@ router.get('/:id', async (req, res) => {
   try {
     const genre = await Genre.findById(req.params.id);
     if (!genre) return res.status(404).json({ error: "Không tìm thấy thể loại" });
-    res.json(genre);
+    const genreObj = genre.toObject();
+    genreObj.thumbnail = getFullUrl(req, genre.thumbnail);
+    res.json(genreObj);
   } catch (err) {
     res.status(500).json({ error: "Lỗi server" });
   }
