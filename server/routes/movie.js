@@ -7,6 +7,13 @@ import { authMiddleware } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
+// Hàm trả về đường dẫn đầy đủ cho file
+const getFullUrl = (req, filePath) => {
+  if (!filePath) return "";
+  if (filePath.startsWith('http')) return filePath;
+  return `${req.protocol}://${req.get('host')}${filePath}`;
+};
+
 // Tạo phim mới
 router.post('/', async (req, res) => {
   try {
@@ -54,7 +61,7 @@ router.post('/', async (req, res) => {
       description,
       video: videoUrl,
       country,
-      comments: [] // Khởi tạo mảng bình luận rỗng
+      comments: []
     });
 
     await movie.save();
@@ -67,7 +74,13 @@ router.post('/', async (req, res) => {
       );
     }
 
-    res.status(201).json({ message: 'Movie created', movie });
+    // Trả về đường dẫn đầy đủ cho thumbnail, gallery, video
+    const movieObj = movie.toObject();
+    movieObj.thumbnail = getFullUrl(req, movie.thumbnail);
+    movieObj.gallery = movie.gallery.map(img => getFullUrl(req, img));
+    movieObj.video = getFullUrl(req, movie.video);
+
+    res.status(201).json({ message: 'Movie created', movie: movieObj });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -85,13 +98,21 @@ router.get('/', async (req, res) => {
       filter.genres = { $in: genreArr };
     }
     if (name) {
-      filter.name = { $regex: name, $options: 'i' }; // tìm gần đúng, không phân biệt hoa thường
+      filter.name = { $regex: name, $options: 'i' };
     }
     const movies = await Movie.find(filter)
       .populate('genres')
       .sort({ [sort]: -1 })
       .limit(Number(limit));
-    res.json(movies);
+    // Trả về đường dẫn đầy đủ cho thumbnail, gallery, video
+    const moviesWithFullUrl = movies.map(m => {
+      const obj = m.toObject();
+      obj.thumbnail = getFullUrl(req, m.thumbnail);
+      obj.gallery = m.gallery.map(img => getFullUrl(req, img));
+      obj.video = getFullUrl(req, m.video);
+      return obj;
+    });
+    res.json(moviesWithFullUrl);
   } catch (err) {
     res.status(500).json({ error: "Lỗi server" });
   }
@@ -104,7 +125,12 @@ router.get('/:id', async (req, res) => {
       .populate('genres')
       .populate({ path: 'comments.user', select: 'displayName' });
     if (!movie) return res.status(404).json({ error: "Không tìm thấy phim" });
-    res.json(movie);
+    // Trả về đường dẫn đầy đủ cho thumbnail, gallery, video
+    const movieObj = movie.toObject();
+    movieObj.thumbnail = getFullUrl(req, movie.thumbnail);
+    movieObj.gallery = movie.gallery.map(img => getFullUrl(req, img));
+    movieObj.video = getFullUrl(req, movie.video);
+    res.json(movieObj);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -114,7 +140,6 @@ router.get('/:id', async (req, res) => {
 router.post('/:id/comment', authMiddleware, async (req, res) => {
   try {
     const { content } = req.body;
-    // Lấy userId từ token đã xác thực
     const userId = req.user.userId;
     if (!userId || !content) {
       return res.status(400).json({ error: "Thiếu userId hoặc nội dung bình luận" });
@@ -128,12 +153,17 @@ router.post('/:id/comment', authMiddleware, async (req, res) => {
     });
     await movie.save();
 
-    // Lấy lại movie với populate user cho comment
     const updatedMovie = await Movie.findById(req.params.id)
       .populate('genres')
       .populate({ path: 'comments.user', select: 'displayName' });
 
-    res.json({ message: "Đã thêm bình luận", movie: updatedMovie });
+    // Trả về đường dẫn đầy đủ cho thumbnail, gallery, video
+    const movieObj = updatedMovie.toObject();
+    movieObj.thumbnail = getFullUrl(req, updatedMovie.thumbnail);
+    movieObj.gallery = updatedMovie.gallery.map(img => getFullUrl(req, img));
+    movieObj.video = getFullUrl(req, updatedMovie.video);
+
+    res.json({ message: "Đã thêm bình luận", movie: movieObj });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -141,7 +171,6 @@ router.post('/:id/comment', authMiddleware, async (req, res) => {
 
 router.delete('/:id/comment/:commentId', authMiddleware, async (req, res) => {
   try {
-    // Lấy userId từ token đã xác thực
     const userId = req.user.userId;
     if (!userId) return res.status(400).json({ error: "Thiếu userId" });
 
@@ -151,21 +180,24 @@ router.delete('/:id/comment/:commentId', authMiddleware, async (req, res) => {
     const comment = movie.comments.id(req.params.commentId);
     if (!comment) return res.status(404).json({ error: "Không tìm thấy bình luận" });
 
-    // Chỉ cho phép user đã đăng bình luận xóa
     if (comment.user.toString() !== userId) {
       return res.status(403).json({ error: "Bạn không có quyền xóa bình luận này" });
     }
 
-    // Sửa tại đây: dùng pull thay vì comment.remove()
     movie.comments.pull({ _id: req.params.commentId });
     await movie.save();
 
-    // Lấy lại movie với populate user cho comment
     const updatedMovie = await Movie.findById(req.params.id)
       .populate('genres')
       .populate({ path: 'comments.user', select: 'displayName' });
 
-    res.json({ message: "Đã xóa bình luận", movie: updatedMovie });
+    // Trả về đường dẫn đầy đủ cho thumbnail, gallery, video
+    const movieObj = updatedMovie.toObject();
+    movieObj.thumbnail = getFullUrl(req, updatedMovie.thumbnail);
+    movieObj.gallery = updatedMovie.gallery.map(img => getFullUrl(req, img));
+    movieObj.video = getFullUrl(req, updatedMovie.video);
+
+    res.json({ message: "Đã xóa bình luận", movie: movieObj });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -179,7 +211,6 @@ router.put('/:id', async (req, res) => {
       directors, actors, description, country
     } = req.body;
 
-    // Đảm bảo các trường là mảng và loại bỏ giá trị rỗng
     let genresArr = genres;
     let directorsArr = directors;
     let actorsArr = actors;
@@ -224,7 +255,6 @@ router.put('/:id', async (req, res) => {
     );
     if (!movie) return res.status(404).json({ error: "Không tìm thấy phim" });
 
-    // Thêm movie._id vào movieId của các genre liên quan (nếu cập nhật genres)
     if (Array.isArray(genresArr) && genresArr.length > 0) {
       await Genre.updateMany(
         { _id: { $in: genresArr } },
@@ -232,7 +262,13 @@ router.put('/:id', async (req, res) => {
       );
     }
 
-    res.json({ message: "Đã cập nhật phim", movie });
+    // Trả về đường dẫn đầy đủ cho thumbnail, gallery, video
+    const movieObj = movie.toObject();
+    movieObj.thumbnail = getFullUrl(req, movie.thumbnail);
+    movieObj.gallery = movie.gallery.map(img => getFullUrl(req, img));
+    movieObj.video = getFullUrl(req, movie.video);
+
+    res.json({ message: "Đã cập nhật phim", movie: movieObj });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
