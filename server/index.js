@@ -3,7 +3,7 @@ import cors from 'cors';
 import './db.js';
 import multer from 'multer';
 import path from 'path';
-import fs from 'fs'; // Thêm dòng này
+import fs from 'fs';
 import authRoutes from './routes/auth.js';
 import genreRoutes from './routes/genre.js';
 import movieRoutes from './routes/movie.js';
@@ -25,20 +25,20 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Multer config cho tất cả file (thumbnail, gallery, video)
+// Multer config chỉ cho thumbnail và gallery (KHÔNG nhận video nữa)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadsDir),
   filename: (req, file, cb) => cb(null, Date.now() + '-' + file.originalname)
 });
 const upload = multer({
   storage,
-  limits: { fileSize: 10 * 1024 * 1024 * 1024 },
+  limits: { fileSize: 50 * 1024 * 1024 }, // Giới hạn 50MB cho ảnh
   fileFilter: (req, file, cb) => {
-    if (file.fieldname === "video" || file.fieldname.endsWith('[video]')) {
-      if (file.mimetype.startsWith("video/") || file.mimetype === "audio/mp3") {
+    if (file.fieldname === "thumbnail" || file.fieldname === "gallery") {
+      if (file.mimetype.startsWith("image/")) {
         cb(null, true);
       } else {
-        cb(new Error("Chỉ nhận file video hoặc mp3!"));
+        cb(new Error("Chỉ nhận file ảnh!"));
       }
     } else {
       cb(null, true);
@@ -60,14 +60,17 @@ app.use('/api/auth', authRoutes);
 app.use('/api/genre', upload.fields([
   { name: 'thumbnail', maxCount: 1 }
 ]), genreRoutes);
-// Truyền upload.fields vào route phim để xử lý tất cả file
+// Chỉ nhận thumbnail và gallery, KHÔNG nhận video
 app.use('/api/movie', upload.fields([
   { name: 'thumbnail', maxCount: 1 },
-  { name: 'gallery', maxCount: 10 },
-  { name: 'video', maxCount: 1 }
+  { name: 'gallery', maxCount: 10 }
 ]), movieRoutes);
-// Thêm route cho phim bộ
-app.use('/api/series', upload.any(), seriesRoutes);
+// Series cũng chỉ nhận thumbnail và gallery
+app.use('/api/series', upload.fields([
+  { name: 'thumbnail', maxCount: 1 },
+  { name: 'gallery', maxCount: 10 }
+]), seriesRoutes);
+
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
   res.status(500).json({ error: err.message || 'Server error' });
