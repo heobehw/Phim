@@ -15,7 +15,7 @@ const getFullUrl = (req, filePath) => {
 // Tạo phim bộ mới
 router.post(
   '/',
-  upload.any(), // <-- Sửa ở đây
+  upload.any(), // Sử dụng upload.any() để không bị lỗi khi không có file
   async (req, res) => {
     try {
       let {
@@ -237,7 +237,7 @@ router.delete('/:id/comment/:commentId', authMiddleware, async (req, res) => {
 // Cập nhật phim bộ
 router.put(
   '/:id',
-  upload.any(), // <-- Sửa ở đây
+  upload.any(), // Sử dụng upload.any() để không bị lỗi khi không có file
   async (req, res) => {
     try {
       const {
@@ -344,4 +344,3 @@ router.delete('/:id', async (req, res) => {
 });
 
 export default router;
-
