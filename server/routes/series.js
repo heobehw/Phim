@@ -2,8 +2,10 @@ import express from 'express';
 import Series from '../models/Series.js';
 import Genre from '../models/Genre.js';
 import { authMiddleware } from '../middleware/authMiddleware.js';
+import multer from 'multer';
 
 const router = express.Router();
+const upload = multer({ dest: 'uploads/' });
 
 // Hàm trả về đường dẫn đầy đủ cho file (Cloudinary đã là url đầy đủ)
 const getFullUrl = (req, filePath) => {
@@ -12,88 +14,109 @@ const getFullUrl = (req, filePath) => {
 };
 
 // Tạo phim bộ mới
-router.post('/', async (req, res) => {
-  try {
-    let {
-      name, genres, year, description, country, directors, actors, hasSubtitle
-    } = req.body;
+router.post(
+  '/',
+  upload.fields([
+    { name: 'thumbnail', maxCount: 1 },
+    { name: 'gallery' }
+    // Nếu có upload video file cho từng tập, cần cấu hình thêm ở đây
+  ]),
+  async (req, res) => {
+    try {
+      let {
+        name, genres, year, description, country, directors, actors, hasSubtitle
+      } = req.body;
 
-    if (!Array.isArray(genres)) genres = genres ? [genres] : [];
-    genres = genres.filter(g => g);
-    if (!Array.isArray(directors)) directors = directors ? [directors] : [];
-    directors = directors.filter(d => d);
-    if (!Array.isArray(actors)) actors = actors ? [actors] : [];
-    actors = actors.filter(a => a);
+      // Parse các trường có thể là array hoặc string
+      if (!Array.isArray(genres)) genres = genres ? [genres] : [];
+      genres = genres.filter(g => g);
+      if (!Array.isArray(directors)) directors = directors ? [directors] : [];
+      directors = directors.filter(d => d);
+      if (!Array.isArray(actors)) actors = actors ? [actors] : [];
+      actors = actors.filter(a => a);
 
-    // Lấy url Cloudinary cho thumbnail
-    let thumbnailUrl = "";
-    if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
-      thumbnailUrl = req.files.thumbnail[0].path;
-    }
-
-    // Lấy url Cloudinary cho gallery
-    let galleryUrls = [];
-    if (req.files && req.files.gallery) {
-      galleryUrls = req.files.gallery.map(file => file.path);
-    }
-
-    // Xử lý danh sách tập phim (episodes)
-    let episodes = [];
-    let idx = 0;
-    // Nhận tập phim dạng multipart/form-data: episodes[0][name], episodes[0][video], ...
-    while (req.body[`episodes[${idx}][name]`] !== undefined) {
-      let epName = req.body[`episodes[${idx}][name]`];
-      let epVideo = "";
-      if (req.files && req.files[`episodes[${idx}][video]`] && req.files[`episodes[${idx}][video]`][0]) {
-        epVideo = req.files[`episodes[${idx}][video]`][0].path;
-      } else if (typeof req.body[`episodes[${idx}][video]`] === "string") {
-        epVideo = req.body[`episodes[${idx}][video]`];
+      // Lấy url Cloudinary cho thumbnail
+      let thumbnailUrl = "";
+      if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
+        thumbnailUrl = req.files.thumbnail[0].path;
       }
-      if (epName) {
-        episodes.push({ name: epName, video: epVideo });
+
+      // Lấy url Cloudinary cho gallery
+      let galleryUrls = [];
+      if (req.files && req.files.gallery) {
+        galleryUrls = req.files.gallery.map(file => file.path);
       }
-      idx++;
+
+      // Xử lý danh sách tập phim (episodes)
+      let episodes = [];
+      let idx = 0;
+      // Nhận tập phim dạng multipart/form-data: episodes[0][name], episodes[0][video], ...
+      while (
+        typeof req.body[`episodes[${idx}][name]`] !== "undefined" ||
+        typeof req.body[`episodes[${idx}][video]`] !== "undefined"
+      ) {
+        let epName = req.body[`episodes[${idx}][name]`];
+        let epVideo = req.body[`episodes[${idx}][video]`];
+        // Nếu epName hoặc epVideo là mảng (do chỉ có 1 tập, form-data sẽ gửi dạng mảng)
+        if (Array.isArray(epName)) epName = epName[0];
+        if (Array.isArray(epVideo)) epVideo = epVideo[0];
+        if (epName || epVideo) {
+          episodes.push({
+            name: epName || "",
+            video: epVideo || ""
+          });
+        }
+        idx++;
+      }
+
+      // Nếu không có tập nào, kiểm tra trường hợp chỉ có 1 tập (form đôi khi gửi trực tiếp)
+      if (episodes.length === 0 && req.body['episodes[0][name]']) {
+        episodes.push({
+          name: req.body['episodes[0][name]'],
+          video: req.body['episodes[0][video]'] || ""
+        });
+      }
+
+      const series = new Series({
+        name,
+        genres,
+        year,
+        description,
+        country,
+        directors,
+        actors,
+        thumbnail: thumbnailUrl,
+        gallery: galleryUrls,
+        episodes,
+        hasSubtitle: hasSubtitle === "true" || hasSubtitle === true || hasSubtitle === "on",
+        comments: []
+      });
+
+      await series.save();
+
+      // Thêm series._id vào movieId của các genre liên quan
+      if (Array.isArray(genres) && genres.length > 0) {
+        await Genre.updateMany(
+          { _id: { $in: genres } },
+          { $addToSet: { movieId: series._id } }
+        );
+      }
+
+      // Trả về đường dẫn đầy đủ cho thumbnail, gallery, video trong episodes
+      const seriesObj = series.toObject();
+      seriesObj.thumbnail = getFullUrl(req, series.thumbnail);
+      seriesObj.gallery = series.gallery.map(img => getFullUrl(req, img));
+      seriesObj.episodes = series.episodes.map(ep => ({
+        ...ep,
+        video: getFullUrl(req, ep.video)
+      }));
+
+      res.status(201).json({ message: 'Series created', series: seriesObj });
+    } catch (err) {
+      res.status(400).json({ error: err.message });
     }
-
-    const series = new Series({
-      name,
-      genres,
-      year,
-      description,
-      country,
-      directors,
-      actors,
-      thumbnail: thumbnailUrl,
-      gallery: galleryUrls,
-      episodes,
-      hasSubtitle: hasSubtitle === "true" || hasSubtitle === true,
-      comments: []
-    });
-
-    await series.save();
-
-    // Thêm series._id vào movieId của các genre liên quan
-    if (Array.isArray(genres) && genres.length > 0) {
-      await Genre.updateMany(
-        { _id: { $in: genres } },
-        { $addToSet: { movieId: series._id } }
-      );
-    }
-
-    // Trả về đường dẫn đầy đủ cho thumbnail, gallery, video trong episodes
-    const seriesObj = series.toObject();
-    seriesObj.thumbnail = getFullUrl(req, series.thumbnail);
-    seriesObj.gallery = series.gallery.map(img => getFullUrl(req, img));
-    seriesObj.episodes = series.episodes.map(ep => ({
-      ...ep,
-      video: getFullUrl(req, ep.video)
-    }));
-
-    res.status(201).json({ message: 'Series created', series: seriesObj });
-  } catch (err) {
-    res.status(400).json({ error: err.message });
   }
-});
+);
 
 // Lấy tất cả phim bộ
 router.get('/', async (req, res) => {
@@ -335,3 +358,4 @@ router.delete('/:id', async (req, res) => {
 });
 
 export default router;
+
