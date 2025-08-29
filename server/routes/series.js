@@ -3,25 +3,9 @@ import Series from '../models/Series.js';
 import Genre from '../models/Genre.js';
 import { authMiddleware } from '../middleware/authMiddleware.js';
 import multer from 'multer';
-import { v2 as cloudinary } from 'cloudinary';
-import streamifier from 'streamifier';
 
 const router = express.Router();
-const upload = multer({ storage: multer.memoryStorage() });
-
-// Hàm upload buffer lên Cloudinary
-const uploadToCloudinary = (buffer, folder = "series") => {
-  return new Promise((resolve, reject) => {
-    const stream = cloudinary.uploader.upload_stream(
-      { folder },
-      (error, result) => {
-        if (result) resolve(result.secure_url);
-        else reject(error);
-      }
-    );
-    streamifier.createReadStream(buffer).pipe(stream);
-  });
-};
+const upload = multer(); // Không lưu file, chỉ nhận thông tin file từ Cloudinary middleware
 
 const getFullUrl = (req, filePath) => {
   if (!filePath) return "";
@@ -48,19 +32,16 @@ router.post(
       if (!Array.isArray(actors)) actors = actors ? [actors] : [];
       actors = actors.filter(a => a);
 
-      // Upload thumbnail lên Cloudinary
+      // Lấy url Cloudinary cho thumbnail
       let thumbnailUrl = "";
       if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
-        thumbnailUrl = await uploadToCloudinary(req.files.thumbnail[0].buffer, "series/thumbnails");
+        thumbnailUrl = req.files.thumbnail[0].path; // Cloudinary trả về url ở .path
       }
 
-      // Upload gallery lên Cloudinary
+      // Lấy url Cloudinary cho gallery
       let galleryUrls = [];
       if (req.files && req.files.gallery) {
-        for (const file of req.files.gallery) {
-          const url = await uploadToCloudinary(file.buffer, "series/gallery");
-          galleryUrls.push(url);
-        }
+        galleryUrls = req.files.gallery.map(file => file.path);
       }
 
       // Xử lý danh sách tập phim (episodes)
@@ -115,11 +96,11 @@ router.post(
       }
 
       const seriesObj = series.toObject();
-      seriesObj.thumbnail = thumbnailUrl;
-      seriesObj.gallery = galleryUrls;
+      seriesObj.thumbnail = getFullUrl(req, series.thumbnail);
+      seriesObj.gallery = series.gallery.map(img => getFullUrl(req, img));
       seriesObj.episodes = series.episodes.map(ep => ({
         ...ep,
-        video: ep.video
+        video: getFullUrl(req, ep.video)
       }));
 
       res.status(201).json({ message: 'Series created', series: seriesObj });
@@ -291,16 +272,12 @@ router.put(
 
       // Thumbnail mới (Cloudinary)
       if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
-        updateData.thumbnail = await uploadToCloudinary(req.files.thumbnail[0].buffer, "series/thumbnails");
+        updateData.thumbnail = req.files.thumbnail[0].path;
       }
 
       // Gallery mới (Cloudinary)
       if (req.files && req.files.gallery) {
-        updateData.gallery = [];
-        for (const file of req.files.gallery) {
-          const url = await uploadToCloudinary(file.buffer, "series/gallery");
-          updateData.gallery.push(url);
-        }
+        updateData.gallery = req.files.gallery.map(file => file.path);
       }
 
       // Lấy series cũ để giữ lại video cũ nếu không upload mới
@@ -315,7 +292,7 @@ router.put(
         let epName = req.body[`episodes[${idx}][name]`];
         let epVideo = "";
         if (req.files && req.files[`episodes[${idx}][video]`] && req.files[`episodes[${idx}][video]`][0]) {
-          epVideo = await uploadToCloudinary(req.files[`episodes[${idx}][video]`][0].buffer, "series/episodes");
+          epVideo = req.files[`episodes[${idx}][video]`][0].path;
         } else if (typeof req.body[`episodes[${idx}][video]`] === "string") {
           epVideo = req.body[`episodes[${idx}][video]`];
         } else if (oldSeries && oldSeries.episodes && oldSeries.episodes[idx]) {
