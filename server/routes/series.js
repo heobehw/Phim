@@ -17,6 +17,11 @@ router.post(
   '/',
   upload.any(), // Sử dụng upload.any() để không bị lỗi khi không có file
   async (req, res) => {
+    // DEBUG: Log toàn bộ req.files và req.body
+    console.log("=== [POST /api/series] ===");
+    console.log("req.files:", req.files);
+    console.log("req.body:", req.body);
+
     try {
       let {
         name, genres, year, description, country, directors, actors, hasSubtitle
@@ -69,6 +74,12 @@ router.post(
         });
       }
 
+      // DEBUG: Log dữ liệu đã xử lý trước khi lưu
+      console.log("== Chuẩn bị lưu Series ==");
+      console.log({
+        name, genres, year, description, country, directors, actors, thumbnailUrl, galleryUrls, episodes, hasSubtitle
+      });
+
       const series = new Series({
         name,
         genres,
@@ -101,8 +112,11 @@ router.post(
         video: getFullUrl(req, ep.video)
       }));
 
+      // DEBUG: Log kết quả trả về
+      console.log("== Series đã lưu thành công ==");
       res.status(201).json({ message: 'Series created', series: seriesObj });
     } catch (err) {
+      console.error("== Lỗi khi tạo series ==", err);
       res.status(400).json({ error: err.message });
     }
   }
@@ -138,6 +152,7 @@ router.get('/', async (req, res) => {
     });
     res.json(seriesWithFullUrl);
   } catch (err) {
+    console.error("== Lỗi khi lấy danh sách series ==", err);
     res.status(500).json({ error: "Lỗi server" });
   }
 });
@@ -158,6 +173,7 @@ router.get('/:id', async (req, res) => {
     }));
     res.json(seriesObj);
   } catch (err) {
+    console.error("== Lỗi khi lấy series theo id ==", err);
     res.status(400).json({ error: err.message });
   }
 });
@@ -193,6 +209,7 @@ router.post('/:id/comment', authMiddleware, async (req, res) => {
 
     res.json({ message: "Đã thêm bình luận", series: seriesObj });
   } catch (err) {
+    console.error("== Lỗi khi thêm bình luận ==", err);
     res.status(400).json({ error: err.message });
   }
 });
@@ -230,6 +247,7 @@ router.delete('/:id/comment/:commentId', authMiddleware, async (req, res) => {
 
     res.json({ message: "Đã xóa bình luận", series: seriesObj });
   } catch (err) {
+    console.error("== Lỗi khi xóa bình luận ==", err);
     res.status(400).json({ error: err.message });
   }
 });
@@ -239,6 +257,11 @@ router.put(
   '/:id',
   upload.any(), // Sử dụng upload.any() để không bị lỗi khi không có file
   async (req, res) => {
+    // DEBUG: Log toàn bộ req.files và req.body
+    console.log("=== [PUT /api/series/:id] ===");
+    console.log("req.files:", req.files);
+    console.log("req.body:", req.body);
+
     try {
       const {
         name, genres, year, description, country, directors, actors, hasSubtitle
@@ -304,6 +327,10 @@ router.put(
       }
       updateData.episodes = episodes;
 
+      // DEBUG: Log dữ liệu update trước khi lưu
+      console.log("== Chuẩn bị update Series ==");
+      console.log(updateData);
+
       const series = await Series.findByIdAndUpdate(
         req.params.id,
         updateData,
@@ -326,8 +353,11 @@ router.put(
         video: ep.video
       }));
 
+      // DEBUG: Log kết quả trả về
+      console.log("== Series đã update thành công ==");
       res.json({ message: "Đã cập nhật phim bộ", series: seriesObj });
     } catch (err) {
+      console.error("== Lỗi khi update series ==", err);
       res.status(400).json({ error: err.message });
     }
   }
@@ -339,6 +369,7 @@ router.delete('/:id', async (req, res) => {
     if (!series) return res.status(404).json({ error: "Không tìm thấy phim bộ" });
     res.json({ message: "Đã xóa phim bộ", series });
   } catch (err) {
+    console.error("== Lỗi khi xóa series ==", err);
     res.status(400).json({ error: err.message });
   }
 });
