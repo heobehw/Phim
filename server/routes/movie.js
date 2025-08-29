@@ -1,18 +1,17 @@
 import express from 'express';
 import Movie from '../models/Movie.js';
 import Genre from '../models/Genre.js';
-import path from 'path';
-// Thêm middleware xác thực
+// Không cần import path
 import { authMiddleware } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// Tạo phim mới (chỉ phim lẻ, không cần episodes)
+// Tạo phim mới
 router.post('/', async (req, res) => {
   try {
     let {
-      name, genres, year, type,
-      directors, actors, description, country, video
+      name, genres, year, type, episodes,
+      directors, actors, description, country
     } = req.body;
 
     // Đảm bảo các trường là mảng và loại bỏ giá trị rỗng
@@ -23,32 +22,22 @@ router.post('/', async (req, res) => {
     if (!Array.isArray(actors)) actors = actors ? [actors] : [];
     actors = actors.filter(a => a);
 
-    // Lấy đường dẫn file thumbnail
+    // Lấy url Cloudinary cho thumbnail
     let thumbnailUrl = "";
     if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
-      thumbnailUrl = path.join('/uploads', req.files.thumbnail[0].filename);
-    } else if (req.body.thumbnail) {
-      thumbnailUrl = req.body.thumbnail;
+      thumbnailUrl = req.files.thumbnail[0].path; // Cloudinary trả về url ở .path
     }
 
-    // Lấy đường dẫn các file gallery
+    // Lấy url Cloudinary cho gallery
     let galleryUrls = [];
     if (req.files && req.files.gallery) {
-      galleryUrls = req.files.gallery.map(file => path.join('/uploads', file.filename));
-    } else if (req.body.gallery) {
-      if (Array.isArray(req.body.gallery)) {
-        galleryUrls = req.body.gallery.filter(g => g);
-      } else if (req.body.gallery) {
-        galleryUrls = [req.body.gallery];
-      }
+      galleryUrls = req.files.gallery.map(file => file.path);
     }
 
-    // Lấy đường dẫn file video hoặc URL BunnyCDN
+    // Không nhận video upload, chỉ nhận link nếu có
     let videoUrl = "";
-    if (req.files && req.files.video && req.files.video[0]) {
-      videoUrl = path.join('/uploads', req.files.video[0].filename);
-    } else if (video) {
-      videoUrl = video;
+    if (req.body.video) {
+      videoUrl = req.body.video;
     }
 
     const movie = new Movie({
@@ -56,6 +45,7 @@ router.post('/', async (req, res) => {
       genres,
       year,
       type,
+      episodes,
       directors,
       actors,
       thumbnail: thumbnailUrl,
@@ -76,18 +66,7 @@ router.post('/', async (req, res) => {
       );
     }
 
-    // Trả về đường dẫn đầy đủ cho thumbnail, gallery, video
-    const getFullUrl = (req, url) => {
-      if (!url) return "";
-      if (url.startsWith("http")) return url;
-      return `${req.protocol}://${req.get('host')}${url}`;
-    };
-    const movieObj = movie.toObject();
-    movieObj.thumbnail = getFullUrl(req, movie.thumbnail);
-    movieObj.gallery = movie.gallery.map(img => getFullUrl(req, img));
-    movieObj.video = getFullUrl(req, movie.video);
-
-    res.status(201).json({ message: 'Movie created', movie: movieObj });
+    res.status(201).json({ message: 'Movie created', movie });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -124,19 +103,7 @@ router.get('/:id', async (req, res) => {
       .populate('genres')
       .populate({ path: 'comments.user', select: 'displayName' });
     if (!movie) return res.status(404).json({ error: "Không tìm thấy phim" });
-
-    // Trả về đường dẫn đầy đủ cho thumbnail, gallery, video
-    const getFullUrl = (req, url) => {
-      if (!url) return "";
-      if (url.startsWith("http")) return url;
-      return `${req.protocol}://${req.get('host')}${url}`;
-    };
-    const movieObj = movie.toObject();
-    movieObj.thumbnail = getFullUrl(req, movie.thumbnail);
-    movieObj.gallery = movie.gallery.map(img => getFullUrl(req, img));
-    movieObj.video = getFullUrl(req, movie.video);
-
-    res.json(movieObj);
+    res.json(movie);
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -201,8 +168,8 @@ router.delete('/:id/comment/:commentId', authMiddleware, async (req, res) => {
 router.put('/:id', async (req, res) => {
   try {
     const {
-      name, genres, year, type,
-      directors, actors, description, country, video
+      name, genres, year, type, episodes,
+      directors, actors, description, country
     } = req.body;
 
     let genresArr = genres;
@@ -220,35 +187,26 @@ router.put('/:id', async (req, res) => {
       genres: genresArr,
       year,
       type,
+      episodes,
       directors: directorsArr,
       actors: actorsArr,
       description,
       country
     };
 
-    // Thumbnail mới
+    // Thumbnail mới (Cloudinary)
     if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
-      updateData.thumbnail = path.join('/uploads', req.files.thumbnail[0].filename);
-    } else if (req.body.thumbnail) {
-      updateData.thumbnail = req.body.thumbnail;
+      updateData.thumbnail = req.files.thumbnail[0].path;
     }
 
-    // Gallery mới
+    // Gallery mới (Cloudinary)
     if (req.files && req.files.gallery) {
-      updateData.gallery = req.files.gallery.map(file => path.join('/uploads', file.filename));
-    } else if (req.body.gallery) {
-      if (Array.isArray(req.body.gallery)) {
-        updateData.gallery = req.body.gallery.filter(g => g);
-      } else if (req.body.gallery) {
-        updateData.gallery = [req.body.gallery];
-      }
+      updateData.gallery = req.files.gallery.map(file => file.path);
     }
 
-    // Video mới
-    if (req.files && req.files.video && req.files.video[0]) {
-      updateData.video = path.join('/uploads', req.files.video[0].filename);
-    } else if (video) {
-      updateData.video = video;
+    // Không nhận video upload, chỉ nhận link nếu có
+    if (req.body.video) {
+      updateData.video = req.body.video;
     }
 
     const movie = await Movie.findByIdAndUpdate(
@@ -265,18 +223,7 @@ router.put('/:id', async (req, res) => {
       );
     }
 
-    // Trả về đường dẫn đầy đủ cho thumbnail, gallery, video
-    const getFullUrl = (req, url) => {
-      if (!url) return "";
-      if (url.startsWith("http")) return url;
-      return `${req.protocol}://${req.get('host')}${url}`;
-    };
-    const movieObj = movie.toObject();
-    movieObj.thumbnail = getFullUrl(req, movie.thumbnail);
-    movieObj.gallery = movie.gallery.map(img => getFullUrl(req, img));
-    movieObj.video = getFullUrl(req, movie.video);
-
-    res.json({ message: "Đã cập nhật phim", movie: movieObj });
+    res.json({ message: "Đã cập nhật phim", movie });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
