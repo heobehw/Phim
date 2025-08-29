@@ -277,12 +277,13 @@ router.put('/:id', async (req, res) => {
       let epVideo = "";
       if (req.files && req.files[`episodes[${idx}][video]`] && req.files[`episodes[${idx}][video]`][0]) {
         epVideo = req.files[`episodes[${idx}][video]`][0].path;
-      } else if (typeof req.body[`episodes[${idx}][video]`] === "string" && req.body[`episodes[${idx}][video]`]) {
+      } else if (typeof req.body[`episodes[${idx}][video]`] === "string") {
         epVideo = req.body[`episodes[${idx}][video]`];
       } else if (oldSeries && oldSeries.episodes && oldSeries.episodes[idx]) {
         epVideo = oldSeries.episodes[idx]?.video || "";
       }
-      if (epName && epVideo) {
+      // Cho phép thêm tập chỉ cần có tên, video có thể rỗng
+      if (epName) {
         episodes.push({ name: epName, video: epVideo });
       }
       idx++;
@@ -299,12 +300,13 @@ router.put('/:id', async (req, res) => {
         } else if (oldSeries && oldSeries.episodes && oldSeries.episodes[idx]) {
           epVideo = oldSeries.episodes[idx]?.video || "";
         }
-        if (epName && epVideo) {
+        if (epName) {
           episodes.push({ name: epName, video: epVideo });
         }
       });
     }
 
+    // Nếu không có tập nào mới, giữ lại tập cũ
     if (episodes.length === 0 && oldSeries && oldSeries.episodes) {
       episodes = oldSeries.episodes;
     }
@@ -351,3 +353,4 @@ router.delete('/:id', async (req, res) => {
 });
 
 export default router;
+
