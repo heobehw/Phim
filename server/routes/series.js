@@ -1,7 +1,6 @@
 import express from 'express';
 import Series from '../models/Series.js';
 import Genre from '../models/Genre.js';
-// Không cần import path
 import { authMiddleware } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
@@ -40,20 +39,20 @@ router.post('/', async (req, res) => {
 
     // Xử lý danh sách tập phim (episodes)
     let episodes = [];
-    if (Array.isArray(req.body.episodes)) {
-      req.body.episodes.forEach((ep, idx) => {
-        let epName = ep.name;
-        let epVideo = "";
-        // Nếu có upload video cho tập này thì lấy url Cloudinary
-        if (req.files && req.files[`episodes[${idx}][video]`] && req.files[`episodes[${idx}][video]`][0]) {
-          epVideo = req.files[`episodes[${idx}][video]`][0].path;
-        } else if (ep.video) {
-          epVideo = ep.video;
-        }
-        if (epName && epVideo) {
-          episodes.push({ name: epName, video: epVideo });
-        }
-      });
+    let idx = 0;
+    // Nhận tập phim dạng multipart/form-data: episodes[0][name], episodes[0][video], ...
+    while (req.body[`episodes[${idx}][name]`] !== undefined) {
+      let epName = req.body[`episodes[${idx}][name]`];
+      let epVideo = "";
+      if (req.files && req.files[`episodes[${idx}][video]`] && req.files[`episodes[${idx}][video]`][0]) {
+        epVideo = req.files[`episodes[${idx}][video]`][0].path;
+      } else if (typeof req.body[`episodes[${idx}][video]`] === "string") {
+        epVideo = req.body[`episodes[${idx}][video]`];
+      }
+      if (epName) {
+        episodes.push({ name: epName, video: epVideo });
+      }
+      idx++;
     }
 
     const series = new Series({
@@ -271,6 +270,7 @@ router.put('/:id', async (req, res) => {
     let episodes = [];
     let idx = 0;
     let foundAny = false;
+    // Nhận tập phim dạng multipart/form-data: episodes[0][name], episodes[0][video], ...
     while (req.body[`episodes[${idx}][name]`] !== undefined) {
       foundAny = true;
       let epName = req.body[`episodes[${idx}][name]`];
@@ -282,32 +282,14 @@ router.put('/:id', async (req, res) => {
       } else if (oldSeries && oldSeries.episodes && oldSeries.episodes[idx]) {
         epVideo = oldSeries.episodes[idx]?.video || "";
       }
-      // Cho phép thêm tập chỉ cần có tên, video có thể rỗng
       if (epName) {
         episodes.push({ name: epName, video: epVideo });
       }
       idx++;
     }
 
-    if (!foundAny && Array.isArray(req.body.episodes)) {
-      req.body.episodes.forEach((ep, idx) => {
-        let epName = ep.name;
-        let epVideo = "";
-        if (req.files && req.files[`episodes[${idx}][video]`] && req.files[`episodes[${idx}][video]`][0]) {
-          epVideo = req.files[`episodes[${idx}][video]`][0].path;
-        } else if (ep.video) {
-          epVideo = ep.video;
-        } else if (oldSeries && oldSeries.episodes && oldSeries.episodes[idx]) {
-          epVideo = oldSeries.episodes[idx]?.video || "";
-        }
-        if (epName) {
-          episodes.push({ name: epName, video: epVideo });
-        }
-      });
-    }
-
     // Nếu không có tập nào mới, giữ lại tập cũ
-    if (episodes.length === 0 && oldSeries && oldSeries.episodes) {
+    if (!foundAny && oldSeries && oldSeries.episodes) {
       episodes = oldSeries.episodes;
     }
     updateData.episodes = episodes;
@@ -353,4 +335,3 @@ router.delete('/:id', async (req, res) => {
 });
 
 export default router;
-
