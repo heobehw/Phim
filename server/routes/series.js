@@ -15,10 +15,7 @@ const getFullUrl = (req, filePath) => {
 // Tạo phim bộ mới
 router.post(
   '/',
-  upload.fields([
-    { name: 'thumbnail', maxCount: 1 },
-    { name: 'gallery' }
-  ]),
+  upload.any(), // <-- Sửa ở đây
   async (req, res) => {
     try {
       let {
@@ -34,14 +31,15 @@ router.post(
 
       // Lấy url Cloudinary cho thumbnail
       let thumbnailUrl = "";
-      if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
-        thumbnailUrl = req.files.thumbnail[0].path; // Cloudinary trả về url ở .path
-      }
+      const thumbnailFile = req.files?.find(f => f.fieldname === "thumbnail");
+      if (thumbnailFile) thumbnailUrl = thumbnailFile.path;
 
       // Lấy url Cloudinary cho gallery
       let galleryUrls = [];
-      if (req.files && req.files.gallery) {
-        galleryUrls = req.files.gallery.map(file => file.path);
+      if (req.files) {
+        galleryUrls = req.files
+          .filter(f => f.fieldname === "gallery")
+          .map(f => f.path);
       }
 
       // Xử lý danh sách tập phim (episodes)
@@ -239,10 +237,7 @@ router.delete('/:id/comment/:commentId', authMiddleware, async (req, res) => {
 // Cập nhật phim bộ
 router.put(
   '/:id',
-  upload.fields([
-    { name: 'thumbnail', maxCount: 1 },
-    { name: 'gallery' }
-  ]),
+  upload.any(), // <-- Sửa ở đây
   async (req, res) => {
     try {
       const {
@@ -271,13 +266,14 @@ router.put(
       };
 
       // Thumbnail mới (Cloudinary)
-      if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
-        updateData.thumbnail = req.files.thumbnail[0].path;
-      }
+      const thumbnailFile = req.files?.find(f => f.fieldname === "thumbnail");
+      if (thumbnailFile) updateData.thumbnail = thumbnailFile.path;
 
       // Gallery mới (Cloudinary)
-      if (req.files && req.files.gallery) {
-        updateData.gallery = req.files.gallery.map(file => file.path);
+      if (req.files) {
+        updateData.gallery = req.files
+          .filter(f => f.fieldname === "gallery")
+          .map(f => f.path);
       }
 
       // Lấy series cũ để giữ lại video cũ nếu không upload mới
@@ -291,9 +287,8 @@ router.put(
         foundAny = true;
         let epName = req.body[`episodes[${idx}][name]`];
         let epVideo = "";
-        if (req.files && req.files[`episodes[${idx}][video]`] && req.files[`episodes[${idx}][video]`][0]) {
-          epVideo = req.files[`episodes[${idx}][video]`][0].path;
-        } else if (typeof req.body[`episodes[${idx}][video]`] === "string") {
+        // Không xử lý file video ở đây, chỉ lấy từ body
+        if (typeof req.body[`episodes[${idx}][video]`] === "string") {
           epVideo = req.body[`episodes[${idx}][video]`];
         } else if (oldSeries && oldSeries.episodes && oldSeries.episodes[idx]) {
           epVideo = oldSeries.episodes[idx]?.video || "";
@@ -349,3 +344,4 @@ router.delete('/:id', async (req, res) => {
 });
 
 export default router;
+
