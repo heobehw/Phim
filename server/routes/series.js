@@ -1,17 +1,15 @@
 import express from 'express';
 import Series from '../models/Series.js';
 import Genre from '../models/Genre.js';
-import path from 'path';
-// Thêm middleware xác thực
+// Không cần import path
 import { authMiddleware } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// Hàm trả về đường dẫn đầy đủ cho file
+// Hàm trả về đường dẫn đầy đủ cho file (Cloudinary đã là url đầy đủ)
 const getFullUrl = (req, filePath) => {
   if (!filePath) return "";
-  if (filePath.startsWith('http')) return filePath;
-  return `${req.protocol}://${req.get('host')}${filePath}`;
+  return filePath;
 };
 
 // Tạo phim bộ mới
@@ -28,28 +26,32 @@ router.post('/', async (req, res) => {
     if (!Array.isArray(actors)) actors = actors ? [actors] : [];
     actors = actors.filter(a => a);
 
-    // Lấy đường dẫn file thumbnail
+    // Lấy url Cloudinary cho thumbnail
     let thumbnailUrl = "";
-    const thumbnailFile = req.files.find(f => f.fieldname === "thumbnail");
-    if (thumbnailFile) {
-      thumbnailUrl = path.join('/uploads', thumbnailFile.filename);
+    if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
+      thumbnailUrl = req.files.thumbnail[0].path;
     }
 
-    // Lấy đường dẫn các file gallery
-    let galleryUrls = req.files
-      .filter(f => f.fieldname === "gallery")
-      .map(file => path.join('/uploads', file.filename));
+    // Lấy url Cloudinary cho gallery
+    let galleryUrls = [];
+    if (req.files && req.files.gallery) {
+      galleryUrls = req.files.gallery.map(file => file.path);
+    }
 
     // Xử lý danh sách tập phim (episodes)
     let episodes = [];
     if (Array.isArray(req.body.episodes)) {
       req.body.episodes.forEach((ep, idx) => {
-        const videoFile = req.files.find(f => f.fieldname === `episodes[${idx}][video]`);
-        if (ep.name && videoFile) {
-          episodes.push({
-            name: ep.name,
-            video: path.join('/uploads', videoFile.filename)
-          });
+        let epName = ep.name;
+        let epVideo = "";
+        // Nếu có upload video cho tập này thì lấy url Cloudinary
+        if (req.files && req.files[`episodes[${idx}][video]`] && req.files[`episodes[${idx}][video]`][0]) {
+          epVideo = req.files[`episodes[${idx}][video]`][0].path;
+        } else if (ep.video) {
+          epVideo = ep.video;
+        }
+        if (epName && epVideo) {
+          episodes.push({ name: epName, video: epVideo });
         }
       });
     }
@@ -252,16 +254,15 @@ router.put('/:id', async (req, res) => {
       hasSubtitle
     };
 
-    // Thumbnail mới
-    const thumbnailFile = req.files.find(f => f.fieldname === "thumbnail");
-    if (thumbnailFile) {
-      updateData.thumbnail = path.join('/uploads', thumbnailFile.filename);
+    // Thumbnail mới (Cloudinary)
+    if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
+      updateData.thumbnail = req.files.thumbnail[0].path;
     }
 
-    // Gallery mới
-    updateData.gallery = req.files
-      .filter(f => f.fieldname === "gallery")
-      .map(file => path.join('/uploads', file.filename));
+    // Gallery mới (Cloudinary)
+    if (req.files && req.files.gallery) {
+      updateData.gallery = req.files.gallery.map(file => file.path);
+    }
 
     // Lấy series cũ để giữ lại video cũ nếu không upload mới
     const oldSeries = await Series.findById(req.params.id);
@@ -274,9 +275,8 @@ router.put('/:id', async (req, res) => {
       foundAny = true;
       let epName = req.body[`episodes[${idx}][name]`];
       let epVideo = "";
-      const videoFile = req.files.find(f => f.fieldname === `episodes[${idx}][video]`);
-      if (videoFile) {
-        epVideo = path.join('/uploads', videoFile.filename);
+      if (req.files && req.files[`episodes[${idx}][video]`] && req.files[`episodes[${idx}][video]`][0]) {
+        epVideo = req.files[`episodes[${idx}][video]`][0].path;
       } else if (typeof req.body[`episodes[${idx}][video]`] === "string" && req.body[`episodes[${idx}][video]`]) {
         epVideo = req.body[`episodes[${idx}][video]`];
       } else if (oldSeries && oldSeries.episodes && oldSeries.episodes[idx]) {
@@ -292,9 +292,8 @@ router.put('/:id', async (req, res) => {
       req.body.episodes.forEach((ep, idx) => {
         let epName = ep.name;
         let epVideo = "";
-        const videoFile = req.files.find(f => f.fieldname === `episodes[${idx}][video]`);
-        if (videoFile) {
-          epVideo = path.join('/uploads', videoFile.filename);
+        if (req.files && req.files[`episodes[${idx}][video]`] && req.files[`episodes[${idx}][video]`][0]) {
+          epVideo = req.files[`episodes[${idx}][video]`][0].path;
         } else if (ep.video) {
           epVideo = ep.video;
         } else if (oldSeries && oldSeries.episodes && oldSeries.episodes[idx]) {
