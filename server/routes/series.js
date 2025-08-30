@@ -5,33 +5,32 @@ import { authMiddleware } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// Tạo phim bộ mới (chỉ nhận link từ FE)
+// Tạo phim bộ mới (nhận file ảnh từ FE, lưu URL Cloudinary)
 router.post('/', async (req, res) => {
   try {
-    // Log toàn bộ req.body để debug
-    console.log("=== [POST /api/series] req.body ===");
-    Object.keys(req.body).forEach(key => {
-      console.log(key, ":", req.body[key]);
-    });
-
     let {
       name, genres, year, description, country,
-      directors, actors, hasSubtitle, thumbnail, gallery
+      directors, actors, hasSubtitle
     } = req.body;
 
-    // Thumbnail: luôn là chuỗi
+    // Thumbnail: lấy từ Cloudinary nếu có file upload, nếu không thì lấy từ FE (URL)
     let thumbnailUrl = "";
-    if (Array.isArray(thumbnail)) thumbnailUrl = thumbnail[0];
-    else if (typeof thumbnail === "string") thumbnailUrl = thumbnail;
-
-    // Gallery: luôn là mảng chuỗi
-    let galleryUrls = [];
-    if (gallery) {
-      if (Array.isArray(gallery)) galleryUrls = gallery;
-      else if (typeof gallery === "string") galleryUrls = [gallery];
+    if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
+      thumbnailUrl = req.files.thumbnail[0].path;
+    } else if (req.body.thumbnail) {
+      thumbnailUrl = req.body.thumbnail;
     }
 
-    // Genres, directors, actors: luôn là mảng
+    // Gallery: lấy từ Cloudinary nếu có file upload, nếu không thì lấy từ FE (URL)
+    let galleryUrls = [];
+    if (req.files && req.files.gallery) {
+      galleryUrls = req.files.gallery.map(f => f.path);
+    } else if (req.body.gallery) {
+      if (Array.isArray(req.body.gallery)) galleryUrls = req.body.gallery;
+      else if (typeof req.body.gallery === "string") galleryUrls = [req.body.gallery];
+    }
+
+    // Đảm bảo các trường là mảng và loại bỏ giá trị rỗng
     if (!Array.isArray(genres)) genres = genres ? [genres] : [];
     genres = genres.filter(g => g);
     if (!Array.isArray(directors)) directors = directors ? [directors] : [];
@@ -39,7 +38,7 @@ router.post('/', async (req, res) => {
     if (!Array.isArray(actors)) actors = actors ? [actors] : [];
     actors = actors.filter(a => a);
 
-    // Episodes: lấy từ req.body dạng multipart
+    // Xử lý danh sách tập phim (episodes)
     let episodes = [];
     let idx = 0;
     while (
@@ -64,22 +63,6 @@ router.post('/', async (req, res) => {
         video: req.body['episodes[0][video]'] || ""
       });
     }
-
-    // Log lại dữ liệu đã xử lý trước khi insert
-    console.log("=== [POST /api/series] Dữ liệu insert ===");
-    console.log({
-      name,
-      genres,
-      year,
-      description,
-      country,
-      directors,
-      actors,
-      thumbnail: thumbnailUrl,
-      gallery: galleryUrls,
-      episodes,
-      hasSubtitle: hasSubtitle === "true" || hasSubtitle === true || hasSubtitle === "on"
-    });
 
     const series = new Series({
       name,
@@ -108,7 +91,6 @@ router.post('/', async (req, res) => {
 
     res.status(201).json({ message: 'Series created', series });
   } catch (err) {
-    console.error("=== [POST /api/series] Error ===", err);
     res.status(400).json({ error: err.message });
   }
 });
@@ -133,7 +115,6 @@ router.get('/', async (req, res) => {
       .limit(Number(limit));
     res.json(seriesList);
   } catch (err) {
-    console.error("=== [GET /api/series] Error ===", err);
     res.status(500).json({ error: "Lỗi server" });
   }
 });
@@ -147,7 +128,6 @@ router.get('/:id', async (req, res) => {
     if (!series) return res.status(404).json({ error: "Không tìm thấy phim bộ" });
     res.json(series);
   } catch (err) {
-    console.error("=== [GET /api/series/:id] Error ===", err);
     res.status(400).json({ error: err.message });
   }
 });
@@ -175,7 +155,6 @@ router.post('/:id/comment', authMiddleware, async (req, res) => {
 
     res.json({ message: "Đã thêm bình luận", series: updatedSeries });
   } catch (err) {
-    console.error("=== [POST /api/series/:id/comment] Error ===", err);
     res.status(400).json({ error: err.message });
   }
 });
@@ -205,7 +184,6 @@ router.delete('/:id/comment/:commentId', authMiddleware, async (req, res) => {
 
     res.json({ message: "Đã xóa bình luận", series: updatedSeries });
   } catch (err) {
-    console.error("=== [DELETE /api/series/:id/comment/:commentId] Error ===", err);
     res.status(400).json({ error: err.message });
   }
 });
@@ -215,7 +193,7 @@ router.put('/:id', async (req, res) => {
   try {
     const {
       name, genres, year, description, country,
-      directors, actors, hasSubtitle, thumbnail, gallery
+      directors, actors, hasSubtitle
     } = req.body;
 
     let genresArr = genres;
@@ -228,6 +206,23 @@ router.put('/:id', async (req, res) => {
     if (!Array.isArray(actorsArr)) actorsArr = actorsArr ? [actorsArr] : [];
     actorsArr = actorsArr.filter(a => a);
 
+    // Thumbnail mới (Cloudinary)
+    let thumbnailUrl = "";
+    if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
+      thumbnailUrl = req.files.thumbnail[0].path;
+    } else if (req.body.thumbnail) {
+      thumbnailUrl = req.body.thumbnail;
+    }
+
+    // Gallery mới (Cloudinary)
+    let galleryUrls = [];
+    if (req.files && req.files.gallery) {
+      galleryUrls = req.files.gallery.map(f => f.path);
+    } else if (req.body.gallery) {
+      if (Array.isArray(req.body.gallery)) galleryUrls = req.body.gallery;
+      else if (typeof req.body.gallery === "string") galleryUrls = [req.body.gallery];
+    }
+
     let updateData = {
       name,
       genres: genresArr,
@@ -236,22 +231,12 @@ router.put('/:id', async (req, res) => {
       country,
       directors: directorsArr,
       actors: actorsArr,
-      hasSubtitle
+      hasSubtitle,
+      thumbnail: thumbnailUrl,
+      gallery: galleryUrls
     };
 
-    // Thumbnail mới (Cloudinary)
-    if (thumbnail) {
-      if (Array.isArray(thumbnail)) updateData.thumbnail = thumbnail[0];
-      else updateData.thumbnail = thumbnail;
-    }
-
-    // Gallery mới (Cloudinary)
-    if (gallery) {
-      if (Array.isArray(gallery)) updateData.gallery = gallery;
-      else if (typeof gallery === "string") updateData.gallery = [gallery];
-    }
-
-    // Xử lý danh sách tập phim cập nhật (giữ nguyên logic cũ)
+    // Xử lý danh sách tập phim cập nhật
     let episodes = [];
     let idx = 0;
     while (
@@ -270,7 +255,6 @@ router.put('/:id', async (req, res) => {
       }
       idx++;
     }
-
     if (episodes.length === 0 && req.body['episodes[0][name]']) {
       episodes.push({
         name: req.body['episodes[0][name]'],
@@ -278,10 +262,6 @@ router.put('/:id', async (req, res) => {
       });
     }
     updateData.episodes = episodes;
-
-    // Log lại dữ liệu cập nhật
-    console.log("=== [PUT /api/series/:id] updateData ===");
-    console.log(updateData);
 
     const series = await Series.findByIdAndUpdate(
       req.params.id,
@@ -299,7 +279,6 @@ router.put('/:id', async (req, res) => {
 
     res.json({ message: "Đã cập nhật phim bộ", series });
   } catch (err) {
-    console.error("=== [PUT /api/series/:id] Error ===", err);
     res.status(400).json({ error: err.message });
   }
 });
@@ -311,7 +290,6 @@ router.delete('/:id', async (req, res) => {
     if (!series) return res.status(404).json({ error: "Không tìm thấy phim bộ" });
     res.json({ message: "Đã xóa phim bộ", series });
   } catch (err) {
-    console.error("=== [DELETE /api/series/:id] Error ===", err);
     res.status(400).json({ error: err.message });
   }
 });
