@@ -38,29 +38,26 @@ router.post('/', async (req, res) => {
     if (!Array.isArray(actors)) actors = actors ? [actors] : [];
     actors = actors.filter(a => a);
 
-    // Xử lý danh sách tập phim (episodes)
+    // Xử lý danh sách tập phim (episodes) - chỉ cần có video là lưu
     let episodes = [];
-    let idx = 0;
-    while (
-      typeof req.body[`episodes[${idx}][name]`] !== "undefined" ||
-      typeof req.body[`episodes[${idx}][video]`] !== "undefined"
-    ) {
+    const numEpisodes = Number(req.body.episodes) || 0;
+    for (let idx = 0; idx < numEpisodes; idx++) {
       let epName = req.body[`episodes[${idx}][name]`];
       let epVideo = req.body[`episodes[${idx}][video]`];
       if (Array.isArray(epName)) epName = epName[0];
       if (Array.isArray(epVideo)) epVideo = epVideo[0];
-      if (epName || epVideo) {
+      if (epVideo) {
         episodes.push({
           name: epName || "",
-          video: epVideo || ""
+          video: epVideo
         });
       }
-      idx++;
     }
-    if (episodes.length === 0 && req.body['episodes[0][name]']) {
+    // Nếu không có số tập, fallback về logic cũ
+    if (episodes.length === 0 && req.body['episodes[0][video]']) {
       episodes.push({
-        name: req.body['episodes[0][name]'],
-        video: req.body['episodes[0][video]'] || ""
+        name: req.body['episodes[0][name]'] || "",
+        video: req.body['episodes[0][video]']
       });
     }
 
@@ -236,29 +233,26 @@ router.put('/:id', async (req, res) => {
       gallery: galleryUrls
     };
 
-    // Xử lý danh sách tập phim cập nhật
+    // Xử lý danh sách tập phim cập nhật - chỉ cần có video là lưu
     let episodes = [];
-    let idx = 0;
-    while (
-      typeof req.body[`episodes[${idx}][name]`] !== "undefined" ||
-      typeof req.body[`episodes[${idx}][video]`] !== "undefined"
-    ) {
+    const numEpisodes = Number(req.body.episodes) || 0;
+    for (let idx = 0; idx < numEpisodes; idx++) {
       let epName = req.body[`episodes[${idx}][name]`];
       let epVideo = req.body[`episodes[${idx}][video]`];
       if (Array.isArray(epName)) epName = epName[0];
       if (Array.isArray(epVideo)) epVideo = epVideo[0];
-      if (epName || epVideo) {
+      if (epVideo) {
         episodes.push({
           name: epName || "",
-          video: epVideo || ""
+          video: epVideo
         });
       }
-      idx++;
     }
-    if (episodes.length === 0 && req.body['episodes[0][name]']) {
+    // Nếu không có số tập, fallback về logic cũ
+    if (episodes.length === 0 && req.body['episodes[0][video]']) {
       episodes.push({
-        name: req.body['episodes[0][name]'],
-        video: req.body['episodes[0][video]'] || ""
+        name: req.body['episodes[0][name]'] || "",
+        video: req.body['episodes[0][video]']
       });
     }
     updateData.episodes = episodes;
