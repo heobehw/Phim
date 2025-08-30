@@ -5,7 +5,7 @@ import { authMiddleware } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// Tạo phim bộ mới (nhận file ảnh từ FE, lưu URL Cloudinary hoặc URL)
+// Tạo phim bộ mới (nhận file ảnh từ FE, lưu URL Cloudinary)
 router.post('/', async (req, res) => {
   try {
     let {
@@ -15,10 +15,9 @@ router.post('/', async (req, res) => {
 
     // Thumbnail: lấy từ Cloudinary nếu có file upload, nếu không thì lấy từ FE (URL)
     let thumbnailUrl = "";
-    // Nếu dùng Multer upload file, sẽ có req.files.thumbnail là mảng file
     if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
       thumbnailUrl = req.files.thumbnail[0].path;
-    } else if (req.body.thumbnail && typeof req.body.thumbnail === "string") {
+    } else if (req.body.thumbnail) {
       thumbnailUrl = req.body.thumbnail;
     }
 
@@ -27,12 +26,8 @@ router.post('/', async (req, res) => {
     if (req.files && req.files.gallery) {
       galleryUrls = req.files.gallery.map(f => f.path);
     } else if (req.body.gallery) {
-      if (Array.isArray(req.body.gallery)) {
-        // Chỉ nhận các phần tử là string (URL)
-        galleryUrls = req.body.gallery.filter(img => typeof img === "string");
-      } else if (typeof req.body.gallery === "string") {
-        galleryUrls = [req.body.gallery];
-      }
+      if (Array.isArray(req.body.gallery)) galleryUrls = req.body.gallery;
+      else if (typeof req.body.gallery === "string") galleryUrls = [req.body.gallery];
     }
 
     // Đảm bảo các trường là mảng và loại bỏ giá trị rỗng
@@ -43,7 +38,7 @@ router.post('/', async (req, res) => {
     if (!Array.isArray(actors)) actors = actors ? [actors] : [];
     actors = actors.filter(a => a);
 
-    // Xử lý danh sách tập phim (episodes) - chỉ cần có video là lưu, tên tập có thể rỗng
+    // Xử lý danh sách tập phim (episodes) - lấy đúng số tập FE gửi
     let episodes = [];
     const numEpisodes = Number(req.body.episodes) || 0;
     for (let idx = 0; idx < numEpisodes; idx++) {
@@ -51,18 +46,18 @@ router.post('/', async (req, res) => {
       let epVideo = req.body[`episodes[${idx}][video]`];
       if (Array.isArray(epName)) epName = epName[0];
       if (Array.isArray(epVideo)) epVideo = epVideo[0];
-      if (epVideo) {
+      if (epName && epVideo) {
         episodes.push({
-          name: epName || "",
+          name: epName,
           video: epVideo
         });
       }
     }
     // Nếu không có số tập, fallback về logic cũ
-    if (episodes.length === 0 && req.body['episodes[0][video]']) {
+    if (episodes.length === 0 && req.body['episodes[0][name]']) {
       episodes.push({
-        name: req.body['episodes[0][name]'] || "",
-        video: req.body['episodes[0][video]']
+        name: req.body['episodes[0][name]'],
+        video: req.body['episodes[0][video]'] || ""
       });
     }
 
@@ -208,24 +203,21 @@ router.put('/:id', async (req, res) => {
     if (!Array.isArray(actorsArr)) actorsArr = actorsArr ? [actorsArr] : [];
     actorsArr = actorsArr.filter(a => a);
 
-    // Thumbnail mới (Cloudinary hoặc URL)
+    // Thumbnail mới (Cloudinary)
     let thumbnailUrl = "";
     if (req.files && req.files.thumbnail && req.files.thumbnail[0]) {
       thumbnailUrl = req.files.thumbnail[0].path;
-    } else if (req.body.thumbnail && typeof req.body.thumbnail === "string") {
+    } else if (req.body.thumbnail) {
       thumbnailUrl = req.body.thumbnail;
     }
 
-    // Gallery mới (Cloudinary hoặc URL)
+    // Gallery mới (Cloudinary)
     let galleryUrls = [];
     if (req.files && req.files.gallery) {
       galleryUrls = req.files.gallery.map(f => f.path);
     } else if (req.body.gallery) {
-      if (Array.isArray(req.body.gallery)) {
-        galleryUrls = req.body.gallery.filter(img => typeof img === "string");
-      } else if (typeof req.body.gallery === "string") {
-        galleryUrls = [req.body.gallery];
-      }
+      if (Array.isArray(req.body.gallery)) galleryUrls = req.body.gallery;
+      else if (typeof req.body.gallery === "string") galleryUrls = [req.body.gallery];
     }
 
     let updateData = {
@@ -241,7 +233,7 @@ router.put('/:id', async (req, res) => {
       gallery: galleryUrls
     };
 
-    // Xử lý danh sách tập phim cập nhật - chỉ cần có video là lưu
+    // Xử lý danh sách tập phim cập nhật - lấy đúng số tập FE gửi
     let episodes = [];
     const numEpisodes = Number(req.body.episodes) || 0;
     for (let idx = 0; idx < numEpisodes; idx++) {
@@ -249,18 +241,18 @@ router.put('/:id', async (req, res) => {
       let epVideo = req.body[`episodes[${idx}][video]`];
       if (Array.isArray(epName)) epName = epName[0];
       if (Array.isArray(epVideo)) epVideo = epVideo[0];
-      if (epVideo) {
+      if (epName && epVideo) {
         episodes.push({
-          name: epName || "",
+          name: epName,
           video: epVideo
         });
       }
     }
     // Nếu không có số tập, fallback về logic cũ
-    if (episodes.length === 0 && req.body['episodes[0][video]']) {
+    if (episodes.length === 0 && req.body['episodes[0][name]']) {
       episodes.push({
-        name: req.body['episodes[0][name]'] || "",
-        video: req.body['episodes[0][video]']
+        name: req.body['episodes[0][name]'],
+        video: req.body['episodes[0][video]'] || ""
       });
     }
     updateData.episodes = episodes;
