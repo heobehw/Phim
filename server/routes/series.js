@@ -5,7 +5,7 @@ import { authMiddleware } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
 
-// Tạo phim bộ mới (không dùng upload.any, chỉ nhận link file từ FE hoặc Cloudinary)
+// Tạo phim bộ mới (chỉ nhận link từ FE)
 router.post('/', async (req, res) => {
   try {
     let {
