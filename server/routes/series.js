@@ -20,7 +20,6 @@ router.post('/', async (req, res) => {
     } else if (req.body.thumbnail && typeof req.body.thumbnail === "string") {
       thumbnailUrl = req.body.thumbnail;
     }
-    // Log thumbnailUrl
     console.log('thumbnailUrl:', thumbnailUrl, typeof thumbnailUrl);
 
     // Gallery: lấy từ Cloudinary nếu có file upload, nếu không thì lấy từ FE (URL)
@@ -34,7 +33,6 @@ router.post('/', async (req, res) => {
         galleryUrls = [req.body.gallery];
       }
     }
-    // Log galleryUrls
     console.log('galleryUrls:', galleryUrls);
 
     // Đảm bảo các trường là mảng và loại bỏ giá trị rỗng
@@ -45,15 +43,23 @@ router.post('/', async (req, res) => {
     if (!Array.isArray(actors)) actors = actors ? [actors] : [];
     actors = actors.filter(a => a);
 
-    // Xử lý danh sách tập phim (episodes) - lấy đúng số tập FE gửi
+    // Sửa lỗi: Xử lý số tập phim (episodes) an toàn
+    let episodesCount = 0;
+    if (typeof req.body.episodes === "string" || typeof req.body.episodes === "number") {
+      episodesCount = Number(req.body.episodes) || 0;
+    } else if (Array.isArray(req.body.episodes)) {
+      episodesCount = req.body.episodes.length;
+    } else {
+      episodesCount = 0;
+    }
+
+    // Xử lý danh sách tập phim - chỉ lưu tập có video, tên tập có thể rỗng
     let episodes = [];
-    const numEpisodes = Number(req.body.episodes) || 0;
-    for (let idx = 0; idx < numEpisodes; idx++) {
+    for (let idx = 0; idx < episodesCount; idx++) {
       let epName = req.body[`episodes[${idx}][name]`];
       let epVideo = req.body[`episodes[${idx}][video]`];
       if (Array.isArray(epName)) epName = epName[0];
       if (Array.isArray(epVideo)) epVideo = epVideo[0];
-      // Chỉ lưu tập có video, tên tập có thể rỗng
       if (epVideo) {
         episodes.push({
           name: epName || "",
@@ -68,7 +74,6 @@ router.post('/', async (req, res) => {
         video: req.body['episodes[0][video]']
       });
     }
-    // Log episodes
     console.log('episodes:', episodes);
 
     const series = new Series({
@@ -253,10 +258,19 @@ router.put('/:id', async (req, res) => {
       gallery: galleryUrls
     };
 
-    // Xử lý danh sách tập phim cập nhật - lấy đúng số tập FE gửi
+    // Sửa lỗi: Xử lý số tập phim (episodes) an toàn
+    let episodesCount = 0;
+    if (typeof req.body.episodes === "string" || typeof req.body.episodes === "number") {
+      episodesCount = Number(req.body.episodes) || 0;
+    } else if (Array.isArray(req.body.episodes)) {
+      episodesCount = req.body.episodes.length;
+    } else {
+      episodesCount = 0;
+    }
+
+    // Xử lý danh sách tập phim cập nhật - chỉ lưu tập có video, tên tập có thể rỗng
     let episodes = [];
-    const numEpisodes = Number(req.body.episodes) || 0;
-    for (let idx = 0; idx < numEpisodes; idx++) {
+    for (let idx = 0; idx < episodesCount; idx++) {
       let epName = req.body[`episodes[${idx}][name]`];
       let epVideo = req.body[`episodes[${idx}][video]`];
       if (Array.isArray(epName)) epName = epName[0];
