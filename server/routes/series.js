@@ -8,6 +8,9 @@ const router = express.Router();
 // Tạo phim bộ mới (nhận file ảnh từ FE, lưu URL Cloudinary)
 router.post('/', async (req, res) => {
   try {
+    // Log toàn bộ req.body để debug
+    console.log('req.body:', req.body);
+
     let {
       name, genres, year, description, country,
       directors, actors, hasSubtitle
@@ -43,31 +46,27 @@ router.post('/', async (req, res) => {
     if (!Array.isArray(actors)) actors = actors ? [actors] : [];
     actors = actors.filter(a => a);
 
-    // Sửa lỗi: Xử lý số tập phim (episodes) an toàn
-    let episodesCount = 0;
-    if (typeof req.body.episodes === "string" || typeof req.body.episodes === "number") {
-      episodesCount = Number(req.body.episodes) || 0;
-    } else if (Array.isArray(req.body.episodes)) {
-      episodesCount = req.body.episodes.length;
-    } else {
-      episodesCount = 0;
-    }
-
-    // Xử lý danh sách tập phim - chỉ lưu tập có video, tên tập có thể rỗng
+    // Sửa lỗi: Đọc đúng các trường tập phim từ FormData
+    // Tìm tất cả các key có dạng episodes[<idx>][name] và episodes[<idx>][video]
     let episodes = [];
-    for (let idx = 0; idx < episodesCount; idx++) {
-      let epName = req.body[`episodes[${idx}][name]`];
-      let epVideo = req.body[`episodes[${idx}][video]`];
+    let idx = 0;
+    while (true) {
+      const epNameKey = `episodes[${idx}][name]`;
+      const epVideoKey = `episodes[${idx}][video]`;
+      if (!(epNameKey in req.body) && !(epVideoKey in req.body)) break;
+      let epName = req.body[epNameKey];
+      let epVideo = req.body[epVideoKey];
       if (Array.isArray(epName)) epName = epName[0];
       if (Array.isArray(epVideo)) epVideo = epVideo[0];
-      if (epVideo) {
+      if (epVideo && epVideo.trim() !== "") {
         episodes.push({
           name: epName || "",
           video: epVideo
         });
       }
+      idx++;
     }
-    // Nếu không có số tập, fallback về logic cũ
+    // Nếu không có tập nào, fallback về logic cũ
     if (episodes.length === 0 && req.body['episodes[0][video]']) {
       episodes.push({
         name: req.body['episodes[0][name]'] || "",
@@ -208,6 +207,9 @@ router.delete('/:id/comment/:commentId', authMiddleware, async (req, res) => {
 // Cập nhật phim bộ
 router.put('/:id', async (req, res) => {
   try {
+    // Log toàn bộ req.body để debug
+    console.log('PUT req.body:', req.body);
+
     const {
       name, genres, year, description, country,
       directors, actors, hasSubtitle
@@ -258,29 +260,24 @@ router.put('/:id', async (req, res) => {
       gallery: galleryUrls
     };
 
-    // Sửa lỗi: Xử lý số tập phim (episodes) an toàn
-    let episodesCount = 0;
-    if (typeof req.body.episodes === "string" || typeof req.body.episodes === "number") {
-      episodesCount = Number(req.body.episodes) || 0;
-    } else if (Array.isArray(req.body.episodes)) {
-      episodesCount = req.body.episodes.length;
-    } else {
-      episodesCount = 0;
-    }
-
-    // Xử lý danh sách tập phim cập nhật - chỉ lưu tập có video, tên tập có thể rỗng
+    // Đọc đúng các trường tập phim từ FormData
     let episodes = [];
-    for (let idx = 0; idx < episodesCount; idx++) {
-      let epName = req.body[`episodes[${idx}][name]`];
-      let epVideo = req.body[`episodes[${idx}][video]`];
+    let idx = 0;
+    while (true) {
+      const epNameKey = `episodes[${idx}][name]`;
+      const epVideoKey = `episodes[${idx}][video]`;
+      if (!(epNameKey in req.body) && !(epVideoKey in req.body)) break;
+      let epName = req.body[epNameKey];
+      let epVideo = req.body[epVideoKey];
       if (Array.isArray(epName)) epName = epName[0];
       if (Array.isArray(epVideo)) epVideo = epVideo[0];
-      if (epVideo) {
+      if (epVideo && epVideo.trim() !== "") {
         episodes.push({
           name: epName || "",
           video: epVideo
         });
       }
+      idx++;
     }
     if (episodes.length === 0 && req.body['episodes[0][video]']) {
       episodes.push({
