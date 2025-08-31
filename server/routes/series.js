@@ -48,24 +48,24 @@ router.post('/', async (req, res) => {
 
     // Sửa lỗi: Đọc đúng các trường tập phim từ FormData
     // Tìm tất cả các key có dạng episodes[<idx>][name] và episodes[<idx>][video]
-    let episodes = [];
-    let idx = 0;
-    while (true) {
-      const epNameKey = `episodes[${idx}][name]`;
-      const epVideoKey = `episodes[${idx}][video]`;
-      if (!(epNameKey in req.body) && !(epVideoKey in req.body)) break;
-      let epName = req.body[epNameKey];
-      let epVideo = req.body[epVideoKey];
-      if (Array.isArray(epName)) epName = epName[0];
-      if (Array.isArray(epVideo)) epVideo = epVideo[0];
-      if (epVideo && epVideo.trim() !== "") {
-        episodes.push({
-          name: epName || "",
-          video: epVideo
-        });
-      }
-      idx++;
-    }
+let episodes = [];
+let idx = 0;
+while (true) {
+  const epNameKey = `episodes[${idx}][name]`;
+  const epVideoKey = `episodes[${idx}][video]`;
+  if (!(epNameKey in req.body) && !(epVideoKey in req.body)) break;
+  let epName = req.body[epNameKey];
+  let epVideo = req.body[epVideoKey];
+  if (Array.isArray(epName)) epName = epName[0];
+  if (Array.isArray(epVideo)) epVideo = epVideo[0];
+  if (epVideo && epVideo.trim() !== "") {
+    episodes.push({
+      name: epName || "",
+      video: epVideo
+    });
+  }
+  idx++;
+}
     // Nếu không có tập nào, fallback về logic cũ
     if (episodes.length === 0 && req.body['episodes[0][video]']) {
       episodes.push({
@@ -261,24 +261,24 @@ router.put('/:id', async (req, res) => {
     };
 
     // Đọc đúng các trường tập phim từ FormData
-    let episodes = [];
-    let idx = 0;
-    while (true) {
-      const epNameKey = `episodes[${idx}][name]`;
-      const epVideoKey = `episodes[${idx}][video]`;
-      if (!(epNameKey in req.body) && !(epVideoKey in req.body)) break;
-      let epName = req.body[epNameKey];
-      let epVideo = req.body[epVideoKey];
-      if (Array.isArray(epName)) epName = epName[0];
-      if (Array.isArray(epVideo)) epVideo = epVideo[0];
-      if (epVideo && epVideo.trim() !== "") {
-        episodes.push({
-          name: epName || "",
-          video: epVideo
-        });
-      }
-      idx++;
-    }
+let episodes = [];
+let idx = 0;
+while (true) {
+  const epNameKey = `episodes[${idx}][name]`;
+  const epVideoKey = `episodes[${idx}][video]`;
+  if (!(epNameKey in req.body) && !(epVideoKey in req.body)) break;
+  let epName = req.body[epNameKey];
+  let epVideo = req.body[epVideoKey];
+  if (Array.isArray(epName)) epName = epName[0];
+  if (Array.isArray(epVideo)) epVideo = epVideo[0];
+  if (epVideo && epVideo.trim() !== "") {
+    episodes.push({
+      name: epName || "",
+      video: epVideo
+    });
+  }
+  idx++;
+}
     if (episodes.length === 0 && req.body['episodes[0][video]']) {
       episodes.push({
         name: req.body['episodes[0][name]'] || "",
@@ -322,3 +322,4 @@ router.delete('/:id', async (req, res) => {
 });
 
 export default router;
+
