@@ -9,6 +9,8 @@ const router = express.Router();
 router.post('/', async (req, res) => {
   try {
     // Log toàn bộ req.body để debug
+     console.log('All req.body keys:', Object.keys(req.body));
+    console.log('Full req.body:', req.body);
     console.log('req.body:', req.body);
 
     let {
@@ -322,4 +324,5 @@ router.delete('/:id', async (req, res) => {
 });
 
 export default router;
+
 
