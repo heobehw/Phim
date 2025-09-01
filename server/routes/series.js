@@ -9,9 +9,8 @@ const router = express.Router();
 router.post('/', async (req, res) => {
   try {
     // Log toàn bộ req.body để debug
-     console.log('All req.body keys:', Object.keys(req.body));
+    console.log('All req.body keys:', Object.keys(req.body));
     console.log('Full req.body:', req.body);
-    console.log('req.body:', req.body);
 
     let {
       name, genres, year, description, country,
@@ -48,32 +47,26 @@ router.post('/', async (req, res) => {
     if (!Array.isArray(actors)) actors = actors ? [actors] : [];
     actors = actors.filter(a => a);
 
-    // Sửa lỗi: Đọc đúng các trường tập phim từ FormData
-    // Tìm tất cả các key có dạng episodes[<idx>][name] và episodes[<idx>][video]
-let episodes = [];
-let idx = 0;
-while (true) {
-  const epNameKey = `episodes[${idx}][name]`;
-  const epVideoKey = `episodes[${idx}][video]`;
-  if (!(epNameKey in req.body) && !(epVideoKey in req.body)) break;
-  let epName = req.body[epNameKey];
-  let epVideo = req.body[epVideoKey];
-  if (Array.isArray(epName)) epName = epName[0];
-  if (Array.isArray(epVideo)) epVideo = epVideo[0];
-  if (epVideo && epVideo.trim() !== "") {
-    episodes.push({
-      name: epName || "",
-      video: epVideo
-    });
-  }
-  idx++;
-}
+    // Đọc đúng các trường tập phim từ FormData (chỉ lấy video, không cần tên tập)
+    let episodes = [];
+    let idx = 0;
+    while (true) {
+      const epVideoKey = `episodes[${idx}][video]`;
+      if (!(epVideoKey in req.body)) break;
+      let epVideo = req.body[epVideoKey];
+      if (Array.isArray(epVideo)) epVideo = epVideo[0];
+      if (epVideo && epVideo.trim() !== "") {
+        episodes.push({ video: epVideo });
+      }
+      idx++;
+    }
     // Nếu không có tập nào, fallback về logic cũ
     if (episodes.length === 0 && req.body['episodes[0][video]']) {
-      episodes.push({
-        name: req.body['episodes[0][name]'] || "",
-        video: req.body['episodes[0][video]']
-      });
+      let epVideo = req.body['episodes[0][video]'];
+      if (Array.isArray(epVideo)) epVideo = epVideo[0];
+      if (epVideo && epVideo.trim() !== "") {
+        episodes.push({ video: epVideo });
+      }
     }
     console.log('episodes:', episodes);
 
@@ -209,7 +202,6 @@ router.delete('/:id/comment/:commentId', authMiddleware, async (req, res) => {
 // Cập nhật phim bộ
 router.put('/:id', async (req, res) => {
   try {
-    // Log toàn bộ req.body để debug
     console.log('PUT req.body:', req.body);
 
     const {
@@ -262,30 +254,25 @@ router.put('/:id', async (req, res) => {
       gallery: galleryUrls
     };
 
-    // Đọc đúng các trường tập phim từ FormData
-let episodes = [];
-let idx = 0;
-while (true) {
-  const epNameKey = `episodes[${idx}][name]`;
-  const epVideoKey = `episodes[${idx}][video]`;
-  if (!(epNameKey in req.body) && !(epVideoKey in req.body)) break;
-  let epName = req.body[epNameKey];
-  let epVideo = req.body[epVideoKey];
-  if (Array.isArray(epName)) epName = epName[0];
-  if (Array.isArray(epVideo)) epVideo = epVideo[0];
-  if (epVideo && epVideo.trim() !== "") {
-    episodes.push({
-      name: epName || "",
-      video: epVideo
-    });
-  }
-  idx++;
-}
+    // Đọc đúng các trường tập phim từ FormData (chỉ lấy video, không cần tên tập)
+    let episodes = [];
+    let idx = 0;
+    while (true) {
+      const epVideoKey = `episodes[${idx}][video]`;
+      if (!(epVideoKey in req.body)) break;
+      let epVideo = req.body[epVideoKey];
+      if (Array.isArray(epVideo)) epVideo = epVideo[0];
+      if (epVideo && epVideo.trim() !== "") {
+        episodes.push({ video: epVideo });
+      }
+      idx++;
+    }
     if (episodes.length === 0 && req.body['episodes[0][video]']) {
-      episodes.push({
-        name: req.body['episodes[0][name]'] || "",
-        video: req.body['episodes[0][video]']
-      });
+      let epVideo = req.body['episodes[0][video]'];
+      if (Array.isArray(epVideo)) epVideo = epVideo[0];
+      if (epVideo && epVideo.trim() !== "") {
+        episodes.push({ video: epVideo });
+      }
     }
     updateData.episodes = episodes;
     console.log('PUT episodes:', episodes);
@@ -324,5 +311,3 @@ router.delete('/:id', async (req, res) => {
 });
 
 export default router;
-
-
