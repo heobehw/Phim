@@ -68,6 +68,12 @@ router.post('/', async (req, res) => {
         episodes.push({ video: epVideo });
       }
     }
+    // Nếu vẫn không có tập nào, thử lấy từ req.body.episodes (mảng object)
+    if (episodes.length === 0 && Array.isArray(req.body.episodes)) {
+      episodes = req.body.episodes
+        .map(ep => ep.video && typeof ep.video === "string" ? { video: ep.video } : null)
+        .filter(Boolean);
+    }
     console.log('episodes:', episodes);
 
     const series = new Series({
@@ -273,6 +279,12 @@ router.put('/:id', async (req, res) => {
       if (epVideo && epVideo.trim() !== "") {
         episodes.push({ video: epVideo });
       }
+    }
+    // Nếu vẫn không có tập nào, thử lấy từ req.body.episodes (mảng object)
+    if (episodes.length === 0 && Array.isArray(req.body.episodes)) {
+      episodes = req.body.episodes
+        .map(ep => ep.video && typeof ep.video === "string" ? { video: ep.video } : null)
+        .filter(Boolean);
     }
     updateData.episodes = episodes;
     console.log('PUT episodes:', episodes);
