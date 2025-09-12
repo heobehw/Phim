@@ -229,6 +229,17 @@ router.put('/:id', async (req, res) => {
   }
 });
 
+router.get('/countries', async (req, res) => {
+  try {
+    // Lấy tất cả giá trị country, loại bỏ rỗng, loại trùng
+    const countries = await Movie.distinct('country');
+    const filtered = countries.filter(c => c && typeof c === "string" && c.trim() !== "");
+    res.json([...new Set(filtered)].sort());
+  } catch (err) {
+    res.status(500).json({ error: "Lỗi server" });
+  }
+});
+
 // Xóa phim
 router.delete('/:id', async (req, res) => {
   try {
@@ -241,3 +252,4 @@ router.delete('/:id', async (req, res) => {
 });
 
 export default router;
+
